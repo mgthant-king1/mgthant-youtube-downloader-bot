@@ -12,7 +12,7 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 # မိမိ Bot Token ကို ဤနေရာတွင် ထည့်ပါ
-BOT_TOKEN = "8630051632:AAHtXxGcIgH10mHwGBdHalUSFDBD05uDd-o"
+BOT_TOKEN = "8552466342:AAEGNebOKjuXgE62oqY_4cfkLSlna8kx8Hw"
 
 def update_ytdlp():
     try:
