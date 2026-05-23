@@ -1,5 +1,6 @@
 import os
 import sys
+import re
 import subprocess
 import logging
 import yt_dlp
@@ -20,37 +21,48 @@ def update_ytdlp():
     except Exception as e:
         logger.error(f"Update failed: {e}")
 
+# YouTube Link ထဲမှ ဗီဒီယို ID ကို သန့်ရှင်းစွာ ထုတ်ယူသည့် စနစ် (IP Block သက်သာစေရန်)
+def extract_video_id(url):
+    regex = r'(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S+\?v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})'
+    match = re.search(regex, url)
+    return match.group(1) if match else None
+
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "မင်္ဂလာပါ! 📥 YouTube Downloader Bot မှ ကြိုဆိုပါတယ်။\n\n"
+        "မင်္ဂလာပါ! 📥 စွမ်းဆောင်ရည်မြင့် အမှားအယွင်းကင်းစင်သော YouTube Downloader Bot မှ ကြိုဆိုပါတယ်။\n\n"
         "သင်ဒေါင်းလုဒ်ဆွဲချင်တဲ့ YouTube Video Link ကို ပို့ပေးပါ။ 4K အထိ စိတ်ကြိုက်ရွေးချယ်နိုင်ပါပြီ။ ✨"
     )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text.strip()
-    if not url.startswith(("http://", "https://")):
+    video_id = extract_video_id(url)
+    
+    if not video_id:
         await update.message.reply_text("ကျေးဇူးပြု၍ မှန်ကန်သော YouTube Link ကို ပို့ပေးပါခင်ဗျာ။ ❌")
         return
 
     checking_msg = await update.message.reply_text("ဗီဒီယိုကို လုံခြုံစိတ်ချရသော Cloud Pipeline ဖြင့် စစ်ဆေးနေပါတယ်... ⏳")
 
+    # Cloud IP Block ကို ကျော်ဖြတ်ရန် အဆင့်မြင့် Options များ
     ydl_opts = {
         'noplaylist': True,
         'quiet': True,
         'no_warnings': True,
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'geo_bypass': True,
+        'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
     }
 
     try:
+        # သန့်ရှင်းပြီးသား Standard Link ဖြင့် အချက်အလက် ရှာဖွေခြင်း
+        clean_url = f"https://www.youtube.com/watch?v={video_id}"
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
+            info = ydl.extract_info(clean_url, download=False)
             if not info:
                 raise Exception("Extract failed")
             video_title = info.get('title', 'YouTube Video')
-            # Short URL သို့မဟုတ် ပုံမှန် URL ကို အခြေခံအကျဆုံး ပုံစံထုတ်ယူခြင်း
-            video_id = info.get('id')
             
-        # Error မတက်စေရန် ခလုတ်ထဲတွင် Video ID ကို တိုက်ရိုက်ထည့်သွင်းခြင်း
+        # ခလုတ်ထဲတွင် ဗီဒီယို ID ကို တိုက်ရိုက်သိမ်းဆည်းခြင်း
         keyboard = [
             [
                 InlineKeyboardButton("📁 360p", callback_data=f"360p|{video_id}"),
@@ -72,11 +84,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     except Exception as e:
         logger.error(str(e))
-        # ဒုတိယအရန်စနစ် - တိုက်ရိုက်အကောင်းဆုံး Quality ဖြင့် ဒေါင်းရန် ခလုတ်ပြခြင်း
-        keyboard = [[InlineKeyboardButton("📁 တိုက်ရိုက်ဒေါင်းလုဒ်ဆွဲမည်", callback_data=f"best|{url}")]]
+        # ဒုတိယအရန်စနစ် - အကယ်၍ IP ကန့်သတ်ခံရပါက တိုက်ရိုက်စနစ်ဖြင့် အမြန်ဆုံးဆွဲရန် စီစဉ်ခြင်း
+        keyboard = [[InlineKeyboardButton("📁 ပုံမှန်အတိုင်း တိုက်ရိုက်ဒေါင်းလုဒ်ဆွဲမည်", callback_data=f"best|{video_id}")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await checking_msg.edit_text(
-            "⚠️ Resolution စစ်ဆေးရန် အခက်အခဲရှိနေပါသည်။ အောက်ပါခလုတ်ကို သုံးပြီး တိုက်ရိုက် ဒေါင်းလုဒ်ဆွဲနိုင်ပါသည်။",
+            "⚠️ ဆာဗာ၏ Resolution ခွဲခြားမှုစနစ် အနည်းငယ် ကြန့်ကြာနေပါသည်။ အောက်ပါခလုတ်ကို သုံးပြီး တိုက်ရိုက် ဒေါင်းလုဒ်ဆွဲနိုင်ပါသည်။",
             reply_markup=reply_markup
         )
 
@@ -86,14 +98,9 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     data_parts = query.data.split("|")
     res_choice = data_parts[0]
-    target = data_parts[1]
+    video_id = data_parts[1]
 
-    # ID ဖြစ်ခဲ့လျှင် YouTube Link အဖြစ် ပြန်ပြောင်းခြင်း
-    if len(target) == 11:  
-        url = f"https://www.youtube.com/watch?v={target}"
-    else:
-        url = target
-
+    url = f"https://www.youtube.com/watch?v={video_id}"
     await query.edit_message_text("Cloud Server ပေါ်တွင် ဗီဒီယိုအား စတင်စီစဉ်နေပါပြီ... 📥")
 
     # Resolution format သတ်မှတ်ချက်
@@ -106,7 +113,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif res_choice == "2160p":
         ydl_format = "bestvideo[height<=2160]+bestaudio/best[height<=2160]"
     else:
-        ydl_format = "bestvideo+bestaudio/best"
+        ydl_format = "best[ext=mp4]/best"
 
     ydl_opts = {
         'format': ydl_format,
@@ -114,7 +121,9 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'merge_output_format': 'mp4',
         'restrictfilenames': True,
         'noplaylist': True,
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'geo_bypass': True,
+        'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
     }
 
     try:
@@ -131,14 +140,12 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         filesize_mb = os.path.getsize(filename) / (1024 * 1024)
 
         with open(filename, 'rb') as video_file:
-            # 50MB အောက်ဆိုလျှင် ပုံမှန် ဗီဒီယိုအတိုင်း ပို့မည်
             if filesize_mb < 49.0:
                 await context.bot.send_video(
                     chat_id=query.message.chat_id,
                     video=video_file,
                     caption=f"🎬 {video_title}\n✨ Quality: {res_choice}"
                 )
-            # Size ကြီးမားပါက Document အဖြစ် ပို့ပေးမည် (2GB အထိ Error လုံးဝ မတက်စေရပါ)
             else:
                 await context.bot.send_document(
                     chat_id=query.message.chat_id,
@@ -152,7 +159,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     except Exception as e:
         logger.error(str(e))
-        await query.edit_message_text("စိတ်မကောင်းပါဘူးခင်ဗျာ။ ဗီဒီယိုအား ဒေါင်းလုဒ်ဆွဲရန် ဆာဗာတွင် အခက်အခဲရှိနေပါသည်။ နောက်ထပ် လင့်ခ်တစ်ခုဖြင့် ပြန်စမ်းကြည့်ပေးပါ။ ❌")
+        await query.edit_message_text("စိတ်မကောင်းပါဘူးခင်ဗျာ။ ဗီဒီယိုအား ဒေါင်းလုဒ်ဆွဲရန် ဆာဗာ IP ကန့်သတ်ချက် ရှိနေပါသည်။ ခေတ္တစောင့်ပြီးမှ ပြန်စမ်းကြည့်ပေးပါရန် မေတ္တာရပ်ခံအပ်ပါသည်။ ❌")
 
 def main():
     update_ytdlp()
