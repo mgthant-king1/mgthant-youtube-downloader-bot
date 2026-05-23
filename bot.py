@@ -1,203 +1,278 @@
 import os
 import sys
-import re
 import subprocess
 import logging
 import yt_dlp
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 
-# Logging setup
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
-logger = logging.getLogger(__name__)
+Logging setup
 
-# မိမိ Bot Token ကို ဤနေရာတွင် ထည့်ပါ
-BOT_TOKEN = "8552466342:AAEGNebOKjuXgE62oqY_4cfkLSlna8kx8Hw"
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logger = logging.getLogger(name)
+
+မိမိ Bot Token ကို ဤနေရာတွင် ထည့်ပါ
+
+BOT_TOKEN = "8925968993:AAF54j8OT9rM20KbcbW6moecBYtmssmr5IQ"
+
+DOWNLOAD_DIR = "downloads"
+if not os.path.exists(DOWNLOAD_DIR):
+os.makedirs(DOWNLOAD_DIR)
 
 def update_ytdlp():
-    try:
-        logger.info("Updating yt-dlp to latest...")
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "--upgrade", "yt-dlp"])
-    except Exception as e:
-        logger.error(f"Update failed: {e}")
+try:
+logger.info("Updating yt-dlp to latest version...")
+subprocess.check_call([sys.executable, "-m", "pip", "install", "--upgrade", "yt-dlp"])
+except Exception as e:
+logger.error(f"Update failed: {e}")
+
+Typing Keyboard ဘေးတွင် အမြဲပေါ်နေမည့် ခလုတ်ကြီး ၄ ခု
+
+def get_main_reply_keyboard():
+return ReplyKeyboardMarkup(
+[
+[KeyboardButton("📺 YouTube Download"), KeyboardButton("🎵 TikTok Download")],
+[KeyboardButton("📘 Facebook Download"), KeyboardButton("🔍 Music Mode (သီချင်းရှာ)")]
+],
+resize_keyboard=True,
+one_time_keyboard=False
+)
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "မင်္ဂလာပါ! 📥 YouTube Video & MP3 Downloader Bot မှ ကြိုဆိုပါတယ်။\n\n"
-        "✨ **အသုံးပြုနည်းများ:**\n"
-        "၁။ YouTube Link ကို တိုက်ရိုက် ပို့နိုင်ပါသည်။\n"
-        "၂။ သီချင်းနာမည် သို့မဟုတ် အဆိုတော်နာမည်ကို ရိုက်နှိပ်၍လည်း ရှာဖွေနိုင်ပါသည်။\n\n"
-        "ပို့ပြီးပါက Video သို့မဟုတ် MP3 စိတ်ကြိုက် ရွေးချယ်နိုင်ပါပြီခင်ဗျာ။ 🙏"
+user_id = str(update.effective_user.id)
+if user_id in context.user_data:
+context.user_data[user_id].clear()
+
+await update.message.reply_text(  
+    "🚀 **Ultimate Multi-Platform Downloader Bot မှ ကြိုဆိုပါတယ်!**\n\n"  
+    "✨ အသုံးပြုလိုသော စနစ်ကို အောက်ပါ **စာရိုက်သည့်ဘေးရှိ Keyboard ခလုတ်များ** တွင် တိုက်ရိုက်ရွေးချယ် အသုံးပြုနိုင်ပါပြီခင်ဗျာ။ 👇\n\n"  
+    "👨‍💻 *Admin: By MGTHANT*",  
+    reply_markup=get_main_reply_keyboard()  
+)
+
+async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+query = update.callback_query
+data = query.data
+user_id = str(update.effective_user.id)
+
+# Music List စာမျက်နှာလှန်ခြင်း  
+if data.startswith("nav|"):  
+    await query.answer()  
+    _, target_page, query_text = data.split("|")  
+    await query.edit_message_text("🔄 စာမျက်နှာကို ပြောင်းလဲနေပါသည်...")  
+    await search_and_show_playlist(update, query.message, query_text, page=int(target_page))  
+    return  
+
+# ဒေါင်းလုဒ်စတင်ခြင်းအပိုင်း  
+choice = data  
+if data.startswith("listmp3|"):  
+    video_id = data.split("|")[1]  
+    target_url = f"https://www.youtube.com/watch?v={video_id}"  
+    await query.answer(text="🎧 MP3 ကို ဆာဗာမှ ဖမ်းယူနေပါပြီ... 📥", show_alert=False)  
+    choice = "yt_mp3"  
+    if user_id not in context.user_data:  
+        context.user_data[user_id] = {}  
+    context.user_data[user_id]['link'] = target_url  
+else:  
+    await query.answer()  
+    if user_id not in context.user_data or 'link' not in context.user_data[user_id]:  
+        await query.edit_message_text("❌ သက်တမ်းကုန်ဆုံးသွားပါပြီ။ လင့်ခ်ကို ပြန်လည်ပေးပို့ပေးပါ။")  
+        return  
+    target_url = context.user_data[user_id]['link']  
+    await query.edit_message_text("📥 ဆာဗာတွင် ဖိုင်ကို စတင်ဆွဲယူနေပါပြီ... ခေတ္တစောင့်ပါ။")  
+
+# YouTube Block များကို ကျော်ဖြတ်ရန် Network Options များ ဖြည့်စွက်ခြင်း  
+ydl_opts = {  
+    'outtmpl': f'{DOWNLOAD_DIR}/%(id)s.%(ext)s',  
+    'restrictfilenames': True,  
+    'noplaylist': True,  
+    'geo_bypass': True,  
+    'quiet': True,  
+    'no_check_certificates': True,  
+    'extractor_args': {'youtube': {'player_client': ['android', 'web']}},  
+    'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',  
+}  
+
+# Format Quality ရွေးချယ်မှုများ (4K အထိ ပါဝင်အောင် ပြန်လည်ပြင်ဆင်ထားပါသည်)  
+if choice == "yt_mp3":  
+    ydl_opts['format'] = 'bestaudio[ext=m4a]/bestaudio/best'  
+elif choice == "yt_4k":  
+    ydl_opts['format'] = 'bestvideo[height<=2160][ext=mp4]+bestaudio[ext=m4a]/best[height<=2160]'  
+elif choice == "yt_1080p":  
+    ydl_opts['format'] = 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080]'  
+elif choice == "yt_720p":  
+    ydl_opts['format'] = 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720]'  
+elif choice == "yt_360p":  
+    ydl_opts['format'] = 'bestvideo[height<=360][ext=mp4]+bestaudio[ext=m4a]/best[height<=360]'  
+elif choice == "tt_nowm":  
+    ydl_opts['format'] = 'bestvideo+bestaudio/best'  
+elif choice == "tt_wm":  
+    ydl_opts['format'] = 'worst/best'  
+elif choice == "fb_best":  
+    ydl_opts['format'] = 'best[ext=mp4]/best'  
+
+try:  
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:  
+        info = ydl.extract_info(target_url, download=True)  
+        filename = ydl.prepare_filename(info)  
+          
+        if choice == "yt_mp3":  
+            if not os.path.exists(filename):  
+                filename = os.path.splitext(filename)[0] + ".m4a"  
+        elif not os.path.exists(filename):  
+            filename = os.path.splitext(filename)[0] + ".mp4"  
+              
+        title = info.get('title', 'Media File')  
+
+    with open(filename, 'rb') as file_to_send:  
+        if choice == "yt_mp3":  
+            await context.bot.send_audio(  
+                chat_id=query.message.chat_id,  
+                audio=file_to_send,  
+                caption=f"🎵 **{title}**\n\n👨‍💻 *Admin: By MGTHANT*"  
+            )  
+        else:  
+            await context.bot.send_video(  
+                chat_id=query.message.chat_id,  
+                video=file_to_send,  
+                caption=f"🎬 **{title}**\n\n👨‍💻 *Admin: By MGTHANT*"  
+            )  
+            await query.message.delete()  
+
+    if os.path.exists(filename):  
+        os.remove(filename)  
+
+except Exception as e:  
+    logger.error(str(e))  
+    await context.bot.send_message(  
+        chat_id=query.message.chat_id,   
+        text="❌ ဒေါင်းလုဒ်ဆွဲရန် အဆင်မပြေပါ။ ဆာဗာမှ ပိတ်ပင်ထားခြင်း သို့မဟုတ် ဗီဒီယို သက်တမ်းကြောင့် ဖြစ်နိုင်ပါသည်။"  
     )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_input = update.message.text.strip()
-    
-    checking_msg = await update.message.reply_text("YouTube ပေါ်တွင် ရှာဖွေနေပါတယ်... ခေတ္တစောင့်ပေးပါဦး။ ⏳")
+user_id = str(update.effective_user.id)
+user_input = update.message.text.strip()
 
-    # Cloud IP Block သက်သာစေရန် Options
-    ydl_opts = {
-        'noplaylist': True,
-        'quiet': True,
-        'no_warnings': True,
-        'geo_bypass': True,
-        'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-    }
+# 1. Reply Keyboard ခလုတ်များကို နှိပ်လိုက်သည့်အခါ  
+if user_input in ["📺 YouTube Download", "🎵 TikTok Download", "📘 Facebook Download", "🔍 Music Mode (သီချင်းရှာ)"]:  
+    if user_id not in context.user_data:  
+        context.user_data[user_id] = {}  
+          
+    if user_input == "📺 YouTube Download":  
+        context.user_data[user_id]['current_mode'] = "youtube"  
+        text = "📺 **YouTube Mode သို့ ရောက်ရှိနေပါသည်:**\n\nဒေါင်းလုဒ်ဆွဲလိုသော YouTube ဗီဒီယို (သို့) Shorts Link ကို ပို့ပေးပါခင်ဗျာ၊၊"  
+    elif user_input == "🎵 TikTok Download":  
+        context.user_data[user_id]['current_mode'] = "tiktok"  
+        text = "🎵 **TikTok Mode သို့ ရောက်ရှိနေပါသည်:**\n\nဒေါင်းလုဒ်ဆွဲလိုသော TikTok ဗီဒီယို Link ကို ပို့ပေးပါခင်ဗျာ၊၊"  
+    elif user_input == "📘 Facebook Download":  
+        context.user_data[user_id]['current_mode'] = "facebook"  
+        text = "📘 **Facebook Mode သို့ ရောက်ရှိနေပါသည်:**\n\nဒေါင်းလုဒ်ဆွဲလိုသော Facebook ဗီဒီယို (သို့) Reels Link ကို ပို့ပေးပါခင်ဗျာ၊၊"  
+    elif user_input == "🔍 Music Mode (သီချင်းရှာ)":  
+        context.user_data[user_id]['current_mode'] = "music"  
+        text = "🔍 **Music Search Mode သို့ ရောက်ရှိနေပါသည်:**\n\nနားထောင်လိုသော အဆိုတော်အမည် (သို့) သီချင်းအမည်ကို စာသားအတိုင်း ရိုက်ပို့ပေးပါခင်ဗျာ၊၊"  
 
-    # Input က Link ဟုတ်မဟုတ် စစ်ဆေးခြင်း
-    if user_input.startswith(("http://", "https://")):
-        search_query = user_input
-    else:
-        # Link မဟုတ်ပါက YouTube Search စနစ် သုံးခြင်း
-        search_query = f"ytsearch1:{user_input}"
+    await update.message.reply_text(f"{text}\n\n👨‍💻 *Admin: By MGTHANT*", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("💬 Connect Admin", url="https://t.me/mgthantIT")]]))  
+    return  
 
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(search_query, download=False)
-            if 'entries' in info:  # Search လုပ်လို့ ထွက်လာတဲ့ ရလဒ်ထဲက ပထမဆုံးဖိုင်ကို ယူခြင်း
-                info = info['entries'][0]
-                
-            video_title = info.get('title', 'YouTube Music/Video')
-            video_id = info.get('id')
-            
-        if not video_id:
-            raise Exception("Video ID not found")
+# 2. လင့်ခ် (URL) တစ်ခုခု ပို့လာပါက အလိုအလျောက် ခွဲခြားပြီး 4K အထိ Quality ပြပေးမည့်စနစ်  
+if user_input.startswith(("http://", "https://")):  
+    if user_id not in context.user_data:  
+        context.user_data[user_id] = {}  
+          
+    context.user_data[user_id]['link'] = user_input  
+      
+    if "tiktok.com" in user_input:  
+        keyboard = [  
+            [InlineKeyboardButton("🔥 TikTok (No WM)", callback_data="tt_nowm")],  
+            [InlineKeyboardButton("📁 TikTok (With WM)", callback_data="tt_wm")]  
+        ]  
+    elif "facebook.com" in user_input or "fb.watch" in user_input or "fb.gg" in user_input:  
+        keyboard = [[InlineKeyboardButton("📁 Facebook Video/Reels", callback_data="fb_best")]]  
+    else:  
+        # YouTube & Others အတွက် 4K အထိ ခလုတ်များ စုံလင်စွာ ပြန်လည်ထည့်သွင်းခြင်း  
+        keyboard = [  
+            [InlineKeyboardButton("🎵 High-Speed MP3 Audio", callback_data="yt_mp3")],  
+            [InlineKeyboardButton("💎 4K Ultra HD", callback_data="yt_4k"), InlineKeyboardButton("✨ 1080p Full HD", callback_data="yt_1080p")],  
+            [InlineKeyboardButton("📁 720p HD", callback_data="yt_720p"), InlineKeyboardButton("📁 360p Low", callback_data="yt_360p")]  
+        ]  
+          
+    keyboard.append([InlineKeyboardButton("💬 Connect Admin", url="https://t.me/mgthantIT")])  
+      
+    await update.message.reply_text(  
+        "✅ **လင့်ခ်လက်ခံရရှိပါပြီ!**\n\nအောက်ပါ Inline ခလုတ်များထဲမှ မိမိဒေါင်းလုဒ်ဆွဲလိုသော Quality ကို ရွေးချယ်နှိပ်ပေးပါရန်။ 👇\n\n👨‍💻 *Admin: By MGTHANT*",   
+        reply_markup=InlineKeyboardMarkup(keyboard)  
+    )  
+    return  
 
-        # ကီးဘုတ်တွင် MP3 ဒေါင်းလုဒ်ဆွဲရန် ခလုတ်ပါ ထပ်ဖြည့်ထားသည်
-        keyboard = [
-            [
-                InlineKeyboardButton("🎵 High Quality MP3 (Audio)", callback_data=f"mp3|{video_id}")
-            ],
-            [
-                InlineKeyboardButton("📁 360p (Video)", callback_data=f"360p|{video_id}"),
-                InlineKeyboardButton("📁 720p HD (Video)", callback_data=f"720p|{video_id}")
-            ],
-            [
-                InlineKeyboardButton("📁 1080p FHD (Video)", callback_data=f"1080p|{video_id}"),
-                InlineKeyboardButton("🔥 4K UltraHD (Video)", callback_data=f"2160p|{video_id}")
-            ]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
+# 3. စာသားသက်သက်ရိုက်ပို့လာပါက Music Search ပြုလုပ်ပေးခြင်း  
+if user_id not in context.user_data:  
+    context.user_data[user_id] = {}  
+context.user_data[user_id]['current_mode'] = "music"  
+  
+checking_msg = await update.message.reply_text(f"🔍 '{user_input}' ကို ရှာဖွေနေပါသည်...")  
+await search_and_show_playlist(update, checking_msg, user_input, page=0)
 
-        await checking_msg.delete()
-        await update.message.reply_text(
-            f"🎬 **တွေ့ရှိသောရလဒ်:** {video_title}\n\n"
-            f"သင်ဒေါင်းလုဒ်လုပ်လိုသော အမျိုးအစား (Format) ကို ရွေးချယ်ပေးပါ 👇",
-            reply_markup=reply_markup,
-            parse_mode="Markdown"
-        )
-    except Exception as e:
-        logger.error(str(e))
-        await checking_msg.edit_text("❌ စိတ်မကောင်းပါဘူး၊ ရှာဖွေမှုမတွေ့ရှိပါ။ သီချင်းနာမည်ကို သေချာပြန်ရိုက်ရှာပေးပါခင်ဗျာ။")
+async def search_and_show_playlist(update: Update, message_obj, query_text, page=0):
+clean_query = query_text.replace('\n', ' ').strip()
+ydl_opts = {'playlistend': 20, 'quiet': True, 'extract_flat': 'in_playlist', 'geo_bypass': True, 'no_check_certificates': True}
 
-async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
+try:  
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:  
+        info = ydl.extract_info(f"ytsearch20:{clean_query}", download=False)  
+        songs = info.get('entries', [])  
 
-    data_parts = query.data.split("|")
-    res_choice = data_parts[0]
-    video_id = data_parts[1]
+    if not songs:  
+        await message_obj.edit_text("❌ ရှာဖွေမှုမတွေ့ရှိပါ။ အခြားနာမည်တစ်ခုဖြင့် ပြန်ရှာကြည့်ပါ။")  
+        return  
 
-    url = f"https://www.youtube.com/watch?v={video_id}"
-    await query.edit_message_text("Cloud Server ပေါ်တွင် စတင်လုပ်ဆောင်နေပါပြီ... 📥")
+    items_per_page = 5  
+    start_idx = page * items_per_page  
+    end_idx = start_idx + items_per_page  
+    page_songs = songs[start_idx:end_idx]  
 
-    # MP3 သို့မဟုတ် Video ရွေးချယ်မှုအလိုက် Options ပြောင်းလဲခြင်း
-    if res_choice == "mp3":
-        ydl_opts = {
-            'format': 'bestaudio/best',
-            'outtmpl': 'downloads/%(id)s.%(ext)s',
-            'restrictfilenames': True,
-            'noplaylist': True,
-            'geo_bypass': True,
-            # အသံဖိုင်ကို MP3 စစ်စစ်ဖြစ်အောင် ပြောင်းလဲပေးသည့်စနစ်
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '320', # 320kbps အကောင်းဆုံး အသံအရည်အသွေး
-            }],
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-        }
-    else:
-        if res_choice == "360p":
-            ydl_format = "bestvideo[height<=360]+bestaudio/best[height<=360]"
-        elif res_choice == "720p":
-            ydl_format = "bestvideo[height<=720]+bestaudio/best[height<=720]"
-        elif res_choice == "1080p":
-            ydl_format = "bestvideo[height<=1080]+bestaudio/best[height<=1080]"
-        elif res_choice == "2160p":
-            ydl_format = "bestvideo[height<=2160]+bestaudio/best[height<=2160]"
-        else:
-            ydl_format = "best[ext=mp4]/best"
+    keyboard = []  
+    for idx, song in enumerate(page_songs, start=start_idx + 1):  
+        s_title = song.get('title', 'Unknown Title')  
+        if len(s_title) > 30:  
+            s_title = s_title[:27] + "..."  
+        s_id = song.get('id')  
+        keyboard.append([InlineKeyboardButton(f"{idx}။ {s_title}", callback_data=f"listmp3|{s_id}")])  
 
-        ydl_opts = {
-            'format': ydl_format,
-            'outtmpl': 'downloads/%(id)s.%(ext)s',
-            'merge_output_format': 'mp4',
-            'restrictfilenames': True,
-            'noplaylist': True,
-            'geo_bypass': True,
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-        }
+    nav_buttons = []  
+    short_query = clean_query[:15]  
+    if page > 0:  
+        nav_buttons.append(InlineKeyboardButton("⬅️ Back", callback_data=f"nav|{page-1}|{short_query}"))  
+    if end_idx < len(songs):  
+        nav_buttons.append(InlineKeyboardButton("Next ➡️", callback_data=f"nav|{page+1}|{short_query}"))  
+      
+    if nav_buttons:  
+        keyboard.append(nav_buttons)  
+          
+    keyboard.append([InlineKeyboardButton("💬 Connect Admin", url="https://t.me/mgthantIT")])  
 
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            filename = ydl.prepare_filename(info)
-            
-            # MP3 ဖြစ်သွားပါက Extension လိုက်ပြောင်းပေးခြင်း
-            if res_choice == "mp3":
-                filename = os.path.splitext(filename)[0] + ".mp3"
-            elif not os.path.exists(filename):
-                filename = os.path.splitext(filename)[0] + ".mp4"
-                
-            video_title = info.get('title', 'Audio/Video')
+    reply_markup = InlineKeyboardMarkup(keyboard)  
+    msg_caption = f"🎵 **Music Search Mode (စာမျက်နှာ - {page + 1})**\n💡 *ခလုတ်နှိပ်လျှင် မူလစာရင်းမပျောက်ဘဲ MP3 ကျလာပါမည်။*\n\n👨‍💻 *Admin: By MGTHANT*"  
+      
+    if isinstance(update, Update) and update.callback_query:  
+        await message_obj.edit_text(msg_caption, reply_markup=reply_markup)  
+    else:  
+        await message_obj.delete()  
+        await update.message.reply_text(msg_caption, reply_markup=reply_markup)  
 
-        await query.edit_message_text("အဆင်သင့်ဖြစ်ပါပြီ။ Telegram ဆီသို့ ပေးပို့နေပါပြီ... 📤")
-        
-        filesize_mb = os.path.getsize(filename) / (1024 * 1024)
-
-        with open(filename, 'rb') as file_to_send:
-            if res_choice == "mp3":
-                # MP3 သီချင်းဖိုင်အဖြစ် ပို့ပေးခြင်း
-                await context.bot.send_audio(
-                    chat_id=query.message.chat_id,
-                    audio=file_to_send,
-                    caption=f"🎵 {video_title}\n✨ Quality: 320kbps MP3 Audio"
-                )
-            else:
-                # ဗီဒီယိုဖိုင်အဖြစ် ပို့ပေးခြင်း
-                if filesize_mb < 49.0:
-                    await context.bot.send_video(
-                        chat_id=query.message.chat_id,
-                        video=file_to_send,
-                        caption=f"🎬 {video_title}\n✨ Quality: {res_choice}"
-                    )
-                else:
-                    await context.bot.send_document(
-                        chat_id=query.message.chat_id,
-                        document=file_to_send,
-                        caption=f"🎬 {video_title} ({int(filesize_mb)}MB - ဖိုင်ဆိုဒ်ကြီးသဖြင့် Document အနေဖြင့် ပို့ပေးထားပါသည်)\n✨ Quality: {res_choice}"
-                    )
-
-        if os.path.exists(filename):
-            os.remove(filename)
-        await query.message.delete()
-
-    except Exception as e:
-        logger.error(str(e))
-        await query.edit_message_text("❌ ဒေါင်းလုဒ်ဆွဲရာတွင် ပြဿနာရှိနေပါသည်။ အခြားသီချင်းဖြင့် ထပ်မံစမ်းသပ်ကြည့်ပါ။")
+except Exception as e:  
+    logger.error(str(e))  
+    await message_obj.edit_text("❌ ဆာဗာအတွင်း ရှာဖွေရခက်ခဲနေပါသည်။")
 
 def main():
-    update_ytdlp()
-    app = Application.builder().token(BOT_TOKEN).build()
-    
-    app.add_handler(CommandHandler("start", start_command))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    app.add_handler(CallbackQueryHandler(button_callback))
-    
-    print("All-In-One Downloader system is running...")
-    app.run_polling()
+update_ytdlp()
+app = Application.builder().token(BOT_TOKEN).build()
 
-if __name__ == '__main__':
-    main()
+app.add_handler(CommandHandler("start", start_command))  
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))  
+app.add_handler(CallbackQueryHandler(button_callback))  
+  
+print("🚀 Auto-detection with Resolution Menu Bot is running...")  
+app.run_polling()
+
+if name == 'main':
+main()
