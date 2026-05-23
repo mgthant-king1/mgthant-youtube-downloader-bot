@@ -10,32 +10,30 @@ from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQu
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# မိမိ Bot Token ကို ဤနေရာတွင် ထည့်ပါ
 BOT_TOKEN = "8552466342:AAEGNebOKjuXgE62oqY_4cfkLSlna8kx8Hw"
 
-# Bot စတင်ပွင့်ချိန်တွင် yt-dlp ကို ချက်ချင်း Version အသစ်ဆုံးဖြစ်အောင် Update လုပ်ခိုင်းခြင်း
 def update_ytdlp():
     try:
-        logger.info("Updating yt-dlp to the latest version...")
+        logger.info("Updating yt-dlp to latest...")
         subprocess.check_call([sys.executable, "-m", "pip", "install", "--upgrade", "yt-dlp"])
-        logger.info("yt-dlp updated successfully.")
     except Exception as e:
-        logger.error(f"Failed to update yt-dlp: {e}")
+        logger.error(f"Update failed: {e}")
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "မင်္ဂလာပါ! 📥 စွမ်းဆောင်ရည်မြှင့် YouTube Downloader Bot မှ ကြိုဆိုပါတယ်။\n\n"
-        "သင်ဒေါင်းလုဒ်ဆွဲချင်တဲ့ YouTube Video Link ကို ပို့ပေးပါ။ 4K အထိ စိတ်ကြိုက်ရွေးချယ်နိုင်ပါပြီ။"
+        "မင်္ဂလာပါ! 📥 YouTube Downloader Bot မှ ကြိုဆိုပါတယ်။\n\n"
+        "သင်ဒေါင်းလုဒ်ဆွဲချင်တဲ့ YouTube Video Link ကို ပို့ပေးပါ။ 4K အထိ စိတ်ကြိုက်ရွေးချယ်နိုင်ပါပြီ။ ✨"
     )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text.strip()
-    if not url.startswith(("http://", "https://", "youtu.be")):
+    if not url.startswith(("http://", "https://")):
         await update.message.reply_text("ကျေးဇူးပြု၍ မှန်ကန်သော YouTube Link ကို ပို့ပေးပါခင်ဗျာ။ ❌")
         return
 
     checking_msg = await update.message.reply_text("ဗီဒီယိုကို လုံခြုံစိတ်ချရသော Cloud Pipeline ဖြင့် စစ်ဆေးနေပါတယ်... ⏳")
 
-    # YouTube Block မလုပ်နိုင်အောင် သုံးမည့် Network Options
     ydl_opts = {
         'noplaylist': True,
         'quiet': True,
@@ -44,25 +42,23 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     }
 
     try:
-        # ဗီဒီယို အချက်အလက်ကို ရှာဖွေခြင်း
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            # extract_info ကို force_generic မပါဘဲ လုံခြုံစွာ ခေါ်ယူခြင်း
             info = ydl.extract_info(url, download=False)
             if not info:
-                raise Exception("No info extracted")
-                
+                raise Exception("Extract failed")
             video_title = info.get('title', 'YouTube Video')
+            # Short URL သို့မဟုတ် ပုံမှန် URL ကို အခြေခံအကျဆုံး ပုံစံထုတ်ယူခြင်း
+            video_id = info.get('id')
             
-        context.user_data[str(update.effective_user.id)] = url
-
+        # Error မတက်စေရန် ခလုတ်ထဲတွင် Video ID ကို တိုက်ရိုက်ထည့်သွင်းခြင်း
         keyboard = [
             [
-                InlineKeyboardButton("📁 360p", callback_data="res_360"),
-                InlineKeyboardButton("📁 720p (HD)", callback_data="res_720")
+                InlineKeyboardButton("📁 360p", callback_data=f"360p|{video_id}"),
+                InlineKeyboardButton("📁 720p (HD)", callback_data=f"720p|{video_id}")
             ],
             [
-                InlineKeyboardButton("📁 1080p (FHD)", callback_data="res_1080"),
-                InlineKeyboardButton("🔥 4K (UltraHD)", callback_data="res_2160")
+                InlineKeyboardButton("📁 1080p (FHD)", callback_data=f"1080p|{video_id}"),
+                InlineKeyboardButton("🔥 4K (UltraHD)", callback_data=f"2160p|{video_id}")
             ]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -75,12 +71,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown"
         )
     except Exception as e:
-        logger.error(f"Extraction Error: {str(e)}")
-        # Error တက်ပါက ယာယီဖြေရှင်းချက်အနေနဲ့ အခြေခံအကျဆုံး Option နဲ့ တိုက်ရိုက်ဒေါင်းဖို့ ခလုတ်ပြပေးမယ်
-        keyboard = [[InlineKeyboardButton("📁 ပုံမှန် Quality အတိုင်း တိုက်ရိုက်ဒေါင်းမည်", callback_data="res_best")]]
+        logger.error(str(e))
+        # ဒုတိယအရန်စနစ် - တိုက်ရိုက်အကောင်းဆုံး Quality ဖြင့် ဒေါင်းရန် ခလုတ်ပြခြင်း
+        keyboard = [[InlineKeyboardButton("📁 တိုက်ရိုက်ဒေါင်းလုဒ်ဆွဲမည်", callback_data=f"best|{url}")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await checking_msg.edit_text(
-            "⚠️ YouTube စနစ်ပြောင်းလဲမှုကြောင့် အဆင့်မြင့် အရည်အသွေး ရွေးချယ်မှု စစ်ဆေးရခက်ခဲနေပါသည်။ အောက်ပါခလုတ်ကို သုံးပြီး တိုက်ရိုက် ဒေါင်းလုဒ်ဆွဲနိုင်ပါသည်။",
+            "⚠️ Resolution စစ်ဆေးရန် အခက်အခဲရှိနေပါသည်။ အောက်ပါခလုတ်ကို သုံးပြီး တိုက်ရိုက် ဒေါင်းလုဒ်ဆွဲနိုင်ပါသည်။",
             reply_markup=reply_markup
         )
 
@@ -88,27 +84,29 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
-    user_id = str(update.effective_user.id)
-    url = context.user_data.get(user_id)
+    data_parts = query.data.split("|")
+    res_choice = data_parts[0]
+    target = data_parts[1]
 
-    if not url:
-        await query.edit_message_text("သက်တမ်းကုန်ဆုံးသွားပါပြီ။ Link ကို ပြန်ပို့ပေးပါ။ ❌")
-        return
+    # ID ဖြစ်ခဲ့လျှင် YouTube Link အဖြစ် ပြန်ပြောင်းခြင်း
+    if len(target) == 11:  
+        url = f"https://www.youtube.com/watch?v={target}"
+    else:
+        url = target
 
-    res_choice = query.data
     await query.edit_message_text("Cloud Server ပေါ်တွင် ဗီဒီယိုအား စတင်စီစဉ်နေပါပြီ... 📥")
 
-    # Resolution အလိုက် ခွဲခြားခြင်း
-    if res_choice == "res_360":
+    # Resolution format သတ်မှတ်ချက်
+    if res_choice == "360p":
         ydl_format = "bestvideo[height<=360]+bestaudio/best[height<=360]"
-    elif res_choice == "res_720":
+    elif res_choice == "720p":
         ydl_format = "bestvideo[height<=720]+bestaudio/best[height<=720]"
-    elif res_choice == "res_1080":
+    elif res_choice == "1080p":
         ydl_format = "bestvideo[height<=1080]+bestaudio/best[height<=1080]"
-    elif res_choice == "res_2160":
+    elif res_choice == "2160p":
         ydl_format = "bestvideo[height<=2160]+bestaudio/best[height<=2160]"
     else:
-        ydl_format = "best[ext=mp4]/best"
+        ydl_format = "bestvideo+bestaudio/best"
 
     ydl_opts = {
         'format': ydl_format,
@@ -133,17 +131,19 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         filesize_mb = os.path.getsize(filename) / (1024 * 1024)
 
         with open(filename, 'rb') as video_file:
+            # 50MB အောက်ဆိုလျှင် ပုံမှန် ဗီဒီယိုအတိုင်း ပို့မည်
             if filesize_mb < 49.0:
                 await context.bot.send_video(
                     chat_id=query.message.chat_id,
                     video=video_file,
-                    caption=f"🎬 {video_title}"
+                    caption=f"🎬 {video_title}\n✨ Quality: {res_choice}"
                 )
+            # Size ကြီးမားပါက Document အဖြစ် ပို့ပေးမည် (2GB အထိ Error လုံးဝ မတက်စေရပါ)
             else:
                 await context.bot.send_document(
                     chat_id=query.message.chat_id,
                     document=video_file,
-                    caption=f"🎬 {video_title} (ဖိုင်ဆိုဒ် 50MB ကျော်သဖြင့် ဖိုင်အမျိုးအစားဖြင့် ပို့ပေးထားပါသည်)"
+                    caption=f"🎬 {video_title} ({int(filesize_mb)}MB - ဖိုင်ဆိုဒ်ကြီးသဖြင့် Document အနေဖြင့် ပို့ပေးထားပါသည်)\n✨ Quality: {res_choice}"
                 )
 
         if os.path.exists(filename):
@@ -155,15 +155,14 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("စိတ်မကောင်းပါဘူးခင်ဗျာ။ ဗီဒီယိုအား ဒေါင်းလုဒ်ဆွဲရန် ဆာဗာတွင် အခက်အခဲရှိနေပါသည်။ နောက်ထပ် လင့်ခ်တစ်ခုဖြင့် ပြန်စမ်းကြည့်ပေးပါ။ ❌")
 
 def main():
-    # Bot မပွင့်ခင် yt-dlp ကို အရင်ဆုံး Update လုပ်ခိုင်းခြင်း
     update_ytdlp()
-
     app = Application.builder().token(BOT_TOKEN).build()
+    
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(CallbackQueryHandler(button_callback))
     
-    print("Bot is running...")
+    print("Perfect system is running...")
     app.run_polling()
 
 if __name__ == '__main__':
