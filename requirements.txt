@@ -1,5 +1,2 @@
-python-telegram-bot==21.1.1
-yt-dlp[default]
-aiofiles
-ffmpeg-python
-requests
+python-telegram-bot==20.8
+yt-dlp
