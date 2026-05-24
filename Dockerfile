@@ -1,12 +1,22 @@
-async def search_and_show_playlist(update: Update, message_obj, query_text, page=0):
-    clean_query = query_text.replace('\n', ' ').strip()
-    
-    # 👈 အောက်ပါ ydl_opts ထဲတွင် 'cookiefile': 'cookies.txt' ထပ်ပေါင်းထည့်ပါ
-    ydl_opts = {
-        'playlistend': 20, 
-        'quiet': True, 
-        'extract_flat': 'in_playlist', 
-        'geo_bypass': True, 
-        'proxy': PROXY_URL,
-        'cookiefile': 'cookies.txt' 
-    }
+FROM python:3.10-slim
+
+# Install ffmpeg
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy all files from Github to Server
+COPY . .
+
+# Install normal requirements
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Force update yt-dlp to latest pre-release to bypass youtube blocks
+RUN pip install -U --pre yt-dlp
+
+# Make sure downloads folder is there
+RUN mkdir -p downloads
+
+CMD ["python", "bot.py"]
