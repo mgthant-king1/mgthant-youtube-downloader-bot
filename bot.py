@@ -78,7 +78,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         target_url = context.user_data[user_id]['link']
         await query.edit_message_text("📥 ဆာဗာတွင် ဖိုင်ကို စတင်ဆွဲယူနေပါပြီ... ခေတ္တစောင့်ပါ။")
 
-    # YouTube Block များကို ကျော်ဖြတ်ရန် Network Options များ ဖြည့်စွက်ခြင်း
+    # YouTube Block များကို ကျော်ဖြတ်ရန် ပိုမိုခေတ်မီသော Network Options များ
     ydl_opts = {
         'outtmpl': f'{DOWNLOAD_DIR}/%(id)s.%(ext)s',
         'restrictfilenames': True,
@@ -86,13 +86,15 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'geo_bypass': True,
         'quiet': True,
         'no_check_certificates': True,
-        'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'retries': 5,
+        # iOS client သည် Bot ဟု သတ်မှတ်ခံရမှု နည်းပါးစေရန် အဓိက အသုံးပြုခြင်း
+        'extractor_args': {'youtube': {'player_client': ['ios', 'android', 'web']}},
+        'nocheckcertificate': True,
+        'user_agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1',
+        'retries': 10,
         'fragment_retries': 10,
-        'socket_timeout': 10,
-        'sleep_interval': 5,
-        'max_sleep_interval': 60,
+        'socket_timeout': 30,
+        'sleep_interval': 2,
+        'max_sleep_interval': 5,
     }
 
     # Format Quality ရွေးချယ်မှုများ (4K အထိ ပါဝင်အောင် ပြန်လည်ပြင်ဆင်ထားပါသည်)
