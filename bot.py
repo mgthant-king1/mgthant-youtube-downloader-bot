@@ -48,8 +48,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🚀 **Ultimate Multi-Platform Downloader Bot မှ ကြိုဆိုပါတယ်!**\n\n"
         "✨ အသုံးပြုလိုသော စနစ်ကို အောက်ပါ **စာရိုက်သည့်ဘေးရှိ Keyboard ခလုတ်များ** တွင် တိုက်ရိုက်ရွေးချယ် အသုံးပြုနိုင်ပါပြီခင်ဗျာ။ 👇\n\n"
         "👨‍💻 *Admin: By MGTHANT*",
-        reply_markup=get_main_reply_keyboard(),
-        parse_mode='Markdown'
+        reply_markup=get_main_reply_keyboard()
     )
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -92,33 +91,36 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'quiet': True,
         'no_check_certificates': True,
         'extractor_args': {'youtube': {'player_client': ['ios', 'android', 'web']}},
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'user_agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1',
         'retries': 10,
         'fragment_retries': 10,
         'socket_timeout': 30,
+        'sleep_interval': 2,
+        'max_sleep_interval': 5,
         'proxy': PROXY_URL,
-        'cookiefile': 'cookies.txt',  # ✨ YouTube Ban ကိုကျော်ရန် Cookie File သုံးပါမည်
+
+        # ❗️ ဤနေရာတွင် cookiefile ကိုပေါင်းထည့်လိုက်ပါသည် ❗️
+        'cookiefile': 'cookies.txt',
     }
 
     # Format Quality ရွေးချယ်မှုများ
     if choice == "yt_mp3":
         ydl_opts['format'] = 'bestaudio[ext=m4a]/bestaudio/best'
     elif choice == "yt_4k":
-        ydl_opts['format'] = 'bestvideo[height<=2160][ext=mp4]+bestaudio[ext=m4a]/best[height<=2160]/best'
+        ydl_opts['format'] = 'bestvideo[height<=2160][ext=mp4]+bestaudio[ext=m4a]/best[height<=2160]'
     elif choice == "yt_1080p":
-        ydl_opts['format'] = 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080]/best'
+        ydl_opts['format'] = 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080]'
     elif choice == "yt_720p":
-        ydl_opts['format'] = 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720]/best'
+        ydl_opts['format'] = 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720]'
     elif choice == "yt_360p":
-        ydl_opts['format'] = 'bestvideo[height<=360][ext=mp4]+bestaudio[ext=m4a]/best[height<=360]/best'
+        ydl_opts['format'] = 'bestvideo[height<=360][ext=mp4]+bestaudio[ext=m4a]/best[height<=360]'
     elif choice == "tt_nowm":
         ydl_opts['format'] = 'bestvideo+bestaudio/best'
     elif choice == "tt_wm":
         ydl_opts['format'] = 'worst/best'
     elif choice == "fb_best":
         ydl_opts['format'] = 'best[ext=mp4]/best'
-        
-    filename = None
+
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(target_url, download=True)
@@ -132,54 +134,35 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
             title = info.get('title', 'Media File')
 
-        # Telegram Limit Size စစ်ဆေးခြင်း (50MB အထက်မရပါ)
-        if os.path.exists(filename):
-            file_size_mb = os.path.getsize(filename) / (1024 * 1024)
-            if file_size_mb > 49.5:
-                await context.bot.send_message(
-                    chat_id=query.message.chat_id, 
-                    text=f"❌ **ဖိုင်အရွယ်အစား ကြီးမားလွန်းပါသည် ({file_size_mb:.2f} MB)!**\nTelegram သည် 50MB အောက်သာ ပေးပို့ခွင့်ပြုပါသည်။ Quality လျှော့၍ ဒေါင်းလုဒ်ဆွဲပါ။",
-                    parse_mode='Markdown'
-                )
-                if os.path.exists(filename):
-                    os.remove(filename)
-                return
-
         with open(filename, 'rb') as file_to_send:
             if choice == "yt_mp3":
                 await context.bot.send_audio(
                     chat_id=query.message.chat_id,
                     audio=file_to_send,
-                    caption=f"🎵 **{title}**\n\n👨‍💻 *Admin: By MGTHANT*",
-                    parse_mode='Markdown'
+                    caption=f"🎵 **{title}**\n\n👨‍💻 *Admin: By MGTHANT*"
                 )
             else:
                 await context.bot.send_video(
                     chat_id=query.message.chat_id,
                     video=file_to_send,
-                    caption=f"🎬 **{title}**\n\n👨‍💻 *Admin: By MGTHANT*",
-                    parse_mode='Markdown'
+                    caption=f"🎬 **{title}**\n\n👨‍💻 *Admin: By MGTHANT*"
                 )
-            await query.message.delete()
+                await query.message.delete()
+
+        if os.path.exists(filename):
+            os.remove(filename)
 
     except yt_dlp.utils.DownloadError as e:
         logger.error(f"Download Error: {e}")
-        error_msg = str(e).lower()
-        if "403" in error_msg or "sign in" in error_msg or "bot" in error_msg or "blocked" in error_msg:
-            msg = "❌ **YouTube ကနေ ပိတ်လိုက်ပါပြီ။**\nကျေးဇူးပြု၍ `cookies.txt` ဖိုင်အသစ်ကို Server အတွင်းသို့ ပြန်လည်ထည့်သွင်းပေးပါ။"
+        error_msg = str(e)
+        if "403" in error_msg or "Sign in to confirm" in error_msg:
+            msg = "❌ YouTube က Bot ဖြစ်ကြောင်း သိရှိသွားပြီး ပိတ်လိုက်ပါပြီ (Cookies သက်တမ်းကုန်သွားပါပြီ)။ Proxy အသုံးပြုရန် လိုအပ်ပါသည်။"
         else:
             msg = "❌ ဒေါင်းလုဒ်ဆွဲရာတွင် ပြဿနာဖြစ်ပွားပါသည်။ လင့်ခ်အမှား (သို့) Private Video ဖြစ်နိုင်ပါသည်။"
-        await context.bot.send_message(chat_id=query.message.chat_id, text=msg, parse_mode='Markdown')
+        await context.bot.send_message(chat_id=query.message.chat_id, text=msg)
     except Exception as e:
         logger.error(str(e))
         await context.bot.send_message(chat_id=query.message.chat_id, text="❌ အခြားမမျှော်လင့်သော ပြဿနာတစ်ခု ဖြစ်ပွားခဲ့ပါသည်။")
-    finally:
-        # နေရာမလွတ်ခုံစေရန် ဒေါင်းလုပ်ဆွဲထားသော ဖိုင်များကို ရှင်းထုတ်ပါ
-        if filename and os.path.exists(filename):
-            try:
-                os.remove(filename)
-            except:
-                pass
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
@@ -198,7 +181,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif user_input == "🔍 Music Mode (သီချင်းရှာ)":
             text = "🔍 **Music Search Mode သို့ ရောက်ရှိနေပါသည်:**\n\nနားထောင်လိုသော သီချင်းအမည်ကို ရိုက်ပို့ပေးပါခင်ဗျာ၊၊"
 
-        await update.message.reply_text(f"{text}\n\n👨‍💻 *Admin: By MGTHANT*", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("💬 Connect Admin", url="https://t.me/mgthantIT")]]), parse_mode='Markdown')
+        await update.message.reply_text(f"{text}\n\n👨‍💻 *Admin: By MGTHANT*", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("💬 Connect Admin", url="https://t.me/mgthantIT")]]))
         return
 
     if user_input.startswith(("http://", "https://")):
@@ -208,7 +191,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         if "tiktok.com" in user_input:
             keyboard = [[InlineKeyboardButton("🔥 TikTok (No WM)", callback_data="tt_nowm")], [InlineKeyboardButton("📁 TikTok (With WM)", callback_data="tt_wm")]]
-        elif "facebook.com" in user_input or "fb.watch" in user_input or "fb.gg" in user_input:
+        elif "facebook.com" in user_input or "fb.watch" in user_input:
             keyboard = [[InlineKeyboardButton("📁 Facebook Video", callback_data="fb_best")]]
         else:
             keyboard = [
@@ -217,7 +200,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 [InlineKeyboardButton("📁 720p HD", callback_data="yt_720p"), InlineKeyboardButton("📁 360p Low", callback_data="yt_360p")]
             ]
         keyboard.append([InlineKeyboardButton("💬 Connect Admin", url="https://t.me/mgthantIT")])
-        await update.message.reply_text("✅ **လင့်ခ်လက်ခံရရှိပါပြီ!**\n\nQuality ရွေးချယ်ပေးပါရန်။ 👇", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
+        await update.message.reply_text("✅ **လင့်ခ်လက်ခံရရှိပါပြီ!**\n\nQuality ရွေးချယ်ပေးပါရန်။ 👇", reply_markup=InlineKeyboardMarkup(keyboard))
         return
 
     checking_msg = await update.message.reply_text(f"🔍 '{user_input}' ကို ရှာဖွေနေပါသည်...")
@@ -231,7 +214,9 @@ async def search_and_show_playlist(update: Update, message_obj, query_text, page
         'extract_flat': 'in_playlist', 
         'geo_bypass': True, 
         'proxy': PROXY_URL,
-        'cookiefile': 'cookies.txt' # Search ရန်အတွက်ပါ Cookie ထည့်ပေးထားသည်
+
+        # ❗️ ဤနေရာ (Search ဖန်ရှင်) တွင်လည်း cookiefile ကိုပေါင်းထည့်လိုက်ပါသည် ❗️
+        'cookiefile': 'cookies.txt'
     }
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -253,10 +238,10 @@ async def search_and_show_playlist(update: Update, message_obj, query_text, page
         if end_idx < len(songs): nav.append(InlineKeyboardButton("Next ➡️", callback_data=f"nav|{page+1}|{clean_query[:15]}"))
         if nav: keyboard.append(nav)
         keyboard.append([InlineKeyboardButton("💬 Connect Admin", url="https://t.me/mgthantIT")])
-        await message_obj.edit_text(f"🎵 **Music Search Mode (Page - {page + 1})**\n\n👨‍💻 *Admin: By MGTHANT*", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
+        await message_obj.edit_text(f"🎵 **Music Search Mode (Page - {page + 1})**\n\n👨‍💻 *Admin: By MGTHANT*", reply_markup=InlineKeyboardMarkup(keyboard))
     except Exception as e:
         logger.error(str(e))
-        await message_obj.edit_text("❌ ရှာဖွေရခက်ခဲနေပါသည်။ YouTube က Block ထားခြင်းဖြစ်နိုင်ပါသည်။ (Cookies အသစ်ပြန်ထည့်ပါ)")
+        await message_obj.edit_text("❌ ရှာဖွေရခက်ခဲနေပါသည်။ (Cookies ကုန်သွားခြင်းဖြစ်နိုင်ပါသည်)")
 
 def main():
     update_ytdlp()
