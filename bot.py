@@ -11,10 +11,7 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 # --- CONFIGURATION ---
-# မိမိ Bot Token ကို ဤနေရာတွင် ထည့်ပါ
 BOT_TOKEN = "8925968993:AAF54j8OT9rM20KbcbW6moecBYtmssmr5IQ"
-
-# Proxy အသုံးပြုလိုပါက ဤနေရာတွင် ထည့်ပါ (ဥပမာ: "socks5://user:pass@host:port" သို့မဟုတ် "http://host:port")
 PROXY_URL = "http://uparhknj:u5ok7mr7s22l@38.154.203.95:5863/" 
 
 DOWNLOAD_DIR = "downloads"
@@ -24,11 +21,10 @@ if not os.path.exists(DOWNLOAD_DIR):
 def update_ytdlp():
     try:
         logger.info("Updating yt-dlp to latest version...")
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "--upgrade", "yt-dlp"])
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "-U", "--pre", "yt-dlp"])
     except Exception as e:
         logger.error(f"Update failed: {e}")
 
-# Typing Keyboard ဘေးတွင် အမြဲပေါ်နေမည့် ခလုတ်ကြီး ၄ ခု
 def get_main_reply_keyboard():
     return ReplyKeyboardMarkup(
         [
@@ -56,7 +52,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data
     user_id = str(update.effective_user.id)
 
-    # Music List စာမျက်နှာလှန်ခြင်း
+    # Music List
     if data.startswith("nav|"):
         await query.answer()
         _, target_page, query_text = data.split("|")
@@ -64,7 +60,6 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await search_and_show_playlist(update, query.message, query_text, page=int(target_page))
         return
 
-    # ဒေါင်းလုဒ်စတင်ခြင်းအပိုင်း
     choice = data
     if data.startswith("listmp3|"):
         video_id = data.split("|")[1]
@@ -82,7 +77,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         target_url = context.user_data[user_id]['link']
         await query.edit_message_text("📥 ဆာဗာတွင် ဖိုင်ကို စတင်ဆွဲယူနေပါပြီ... ခေတ္တစောင့်ပါ။")
 
-    # YouTube Block များကို ကျော်ဖြတ်ရန် အဆင့်မြင့် Network Options များ
+    # [အရေးကြီးဆုံး yt-dlp Settings ပိုင်း]
     ydl_opts = {
         'outtmpl': f'{DOWNLOAD_DIR}/%(id)s.%(ext)s',
         'restrictfilenames': True,
@@ -91,21 +86,24 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'quiet': True,
         'no_check_certificates': True,
         'extractor_args': {'youtube': {'player_client': ['ios', 'android', 'web']}},
-        'user_agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1',
-        'retries': 10,
-        'fragment_retries': 10,
-        'socket_timeout': 30,
-        'sleep_interval': 2,
-        'max_sleep_interval': 5,
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'proxy': PROXY_URL,
-
-        # ❗️ ဤနေရာတွင် cookiefile ကိုပေါင်းထည့်လိုက်ပါသည် ❗️
-        'cookiefile': 'cookies.txt',
     }
 
-    # Format Quality ရွေးချယ်မှုများ
+    # ဒီနေရာက Cookies.txt ဖိုင်ကို ဖတ်ခိုင်းတဲ့နေရာဖြစ်ပါတယ်။ မပါလို့မရပါ။
+    cookie_path = os.path.join(os.getcwd(), 'cookies.txt')
+    if os.path.exists(cookie_path):
+        ydl_opts['cookiefile'] = cookie_path
+    else:
+        logger.warning("No cookies.txt found! Downloads might fail.")
+
     if choice == "yt_mp3":
-        ydl_opts['format'] = 'bestaudio[ext=m4a]/bestaudio/best'
+        ydl_opts['format'] = 'bestaudio/best'
+        ydl_opts['postprocessors'] = [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': '192',
+        }]
     elif choice == "yt_4k":
         ydl_opts['format'] = 'bestvideo[height<=2160][ext=mp4]+bestaudio[ext=m4a]/best[height<=2160]'
     elif choice == "yt_1080p":
@@ -124,15 +122,15 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(target_url, download=True)
-            filename = ydl.prepare_filename(info)
-            
-            if choice == "yt_mp3":
-                if not os.path.exists(filename):
-                    filename = os.path.splitext(filename)[0] + ".m4a"
-            elif not os.path.exists(filename):
-                filename = os.path.splitext(filename)[0] + ".mp4"
-                
             title = info.get('title', 'Media File')
+            
+            # ဖိုင်အမည်ရှာဖွေခြင်း
+            if choice == "yt_mp3":
+                filename = os.path.join(DOWNLOAD_DIR, f"{info['id']}.mp3")
+            else:
+                filename = ydl.prepare_filename(info)
+                if not os.path.exists(filename):
+                    filename = os.path.splitext(filename)[0] + ".mp4"
 
         with open(filename, 'rb') as file_to_send:
             if choice == "yt_mp3":
@@ -153,12 +151,11 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             os.remove(filename)
 
     except yt_dlp.utils.DownloadError as e:
-        logger.error(f"Download Error: {e}")
         error_msg = str(e)
-        if "403" in error_msg or "Sign in to confirm" in error_msg:
-            msg = "❌ YouTube က Bot ဖြစ်ကြောင်း သိရှိသွားပြီး ပိတ်လိုက်ပါပြီ (Cookies သက်တမ်းကုန်သွားပါပြီ)။ Proxy အသုံးပြုရန် လိုအပ်ပါသည်။"
+        if "Private video" in error_msg or "Sign in" in error_msg or "bot" in error_msg.lower():
+            msg = "❌ YouTube မှ ပိတ်ပင်ထားပါသည်။ (Cookies Expire ဖြစ်နေနိုင်ပါတယ်၊ cookies.txt အသစ်ထပ်ထည့်ပေးပါ။)"
         else:
-            msg = "❌ ဒေါင်းလုဒ်ဆွဲရာတွင် ပြဿနာဖြစ်ပွားပါသည်။ လင့်ခ်အမှား (သို့) Private Video ဖြစ်နိုင်ပါသည်။"
+            msg = "❌ ဒေါင်းလုဒ်ဆွဲရာတွင် ပြဿနာဖြစ်ပွားပါသည်။ လင့်ခ်မှန်ကန်မှုရှိမရှိ စစ်ဆေးပါ။"
         await context.bot.send_message(chat_id=query.message.chat_id, text=msg)
     except Exception as e:
         logger.error(str(e))
@@ -208,16 +205,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def search_and_show_playlist(update: Update, message_obj, query_text, page=0):
     clean_query = query_text.replace('\n', ' ').strip()
-    ydl_opts = {
-        'playlistend': 20, 
-        'quiet': True, 
-        'extract_flat': 'in_playlist', 
-        'geo_bypass': True, 
-        'proxy': PROXY_URL,
-
-        # ❗️ ဤနေရာ (Search ဖန်ရှင်) တွင်လည်း cookiefile ကိုပေါင်းထည့်လိုက်ပါသည် ❗️
-        'cookiefile': 'cookies.txt'
-    }
+    ydl_opts = {'playlistend': 20, 'quiet': True, 'extract_flat': 'in_playlist', 'geo_bypass': True, 'proxy': PROXY_URL}
+    
+    # ရှာဖွေရာတွင်လည်း 403 မတက်အောင် Cookies သုံးပေးရပါမည်
+    cookie_path = os.path.join(os.getcwd(), 'cookies.txt')
+    if os.path.exists(cookie_path):
+         ydl_opts['cookiefile'] = cookie_path
+         
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(f"ytsearch20:{clean_query}", download=False)
@@ -241,7 +235,7 @@ async def search_and_show_playlist(update: Update, message_obj, query_text, page
         await message_obj.edit_text(f"🎵 **Music Search Mode (Page - {page + 1})**\n\n👨‍💻 *Admin: By MGTHANT*", reply_markup=InlineKeyboardMarkup(keyboard))
     except Exception as e:
         logger.error(str(e))
-        await message_obj.edit_text("❌ ရှာဖွေရခက်ခဲနေပါသည်။ (Cookies ကုန်သွားခြင်းဖြစ်နိုင်ပါသည်)")
+        await message_obj.edit_text("❌ ရှာဖွေရခက်ခဲနေပါသည်။ Proxy အသုံးပြုရန် လိုအပ်နိုင်ပါသည်။")
 
 def main():
     update_ytdlp()
