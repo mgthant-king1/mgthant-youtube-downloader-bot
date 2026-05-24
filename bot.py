@@ -11,10 +11,10 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 # --- CONFIGURATION ---
-# မိမိ Bot Token
+# မိမိ Bot Token ကို ဤနေရာတွင် ထည့်ပါ
 BOT_TOKEN = "8925968993:AAF54j8OT9rM20KbcbW6moecBYtmssmr5IQ"
 
-# Proxy - IP Block ခံရပါက VPN Proxy တခုခုသုံးရန်
+# Proxy အသုံးပြုလိုပါက ဤနေရာတွင် ထည့်ပါ
 PROXY_URL = "http://uparhknj:u5ok7mr7s22l@38.154.203.95:5863/" 
 
 DOWNLOAD_DIR = "downloads"
@@ -82,7 +82,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         target_url = context.user_data[user_id]['link']
         await query.edit_message_text("📥 ဆာဗာတွင် ဖိုင်ကို စတင်ဆွဲယူနေပါပြီ... ခေတ္တစောင့်ပါ။")
 
-    # YouTube Block များကို ကျော်ဖြတ်ရန် အဆင့်မြင့် Network Options များ (Cookies ထည့်ထားပါသည်)
+    # YouTube Block များကို ကျော်ဖြတ်ရန် အဆင့်မြင့် Network Options များ
     ydl_opts = {
         'outtmpl': f'{DOWNLOAD_DIR}/%(id)s.%(ext)s',
         'restrictfilenames': True,
@@ -90,6 +90,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'geo_bypass': True,
         'quiet': True,
         'no_check_certificates': True,
+        'cookiefile': 'cookies.txt',  # 🟢 COOKIE ထည့်သွင်းပြီးသွားပါပြီ
         'extractor_args': {'youtube': {'player_client': ['ios', 'android', 'web']}},
         'user_agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1',
         'retries': 10,
@@ -98,7 +99,6 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'sleep_interval': 2,
         'max_sleep_interval': 5,
         'proxy': PROXY_URL,
-        'cookiefile': 'cookies.txt', # <--- ဒီအပိုင်းက YouTube Ban တာကိုအဓိက ကာကွယ်ပေးမှာပါ
     }
 
     # Format Quality ရွေးချယ်မှုများ
@@ -154,13 +154,14 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Download Error: {e}")
         error_msg = str(e)
         if "403" in error_msg or "Sign in to confirm you’re not a bot" in error_msg:
-            msg = "❌ YouTube က Login ဝင်ခိုင်းနေပါပြီ။ 'cookies.txt' ဖိုင် မှန်ကန်မှုရှိမရှိ စစ်ဆေးပါ။"
+            msg = "❌ YouTube က Bot ဖြစ်ကြောင်း သိရှိသွားပြီး ပိတ်လိုက်ပါပြီ။ Cookie/VPN လုပ်ဆောင်မှု အဆင်မပြေပါ။"
         else:
-            msg = "❌ ဒေါင်းလုဒ်ဆွဲရာတွင် ပြဿနာဖြစ်ပွားပါသည်။ လင့်ခ်မှန်ကန်မှုရှိမရှိ စစ်ဆေးပါ။"
-        await context.bot.send_message(chat_id=query.message.chat_id, text=msg)
+            # 🟢 Error ဖြစ်ရတဲ့အကြောင်းရင်း အတိအကျကို ပြပေးဖို့ ထည့်ထားပါတယ်
+            msg = f"❌ ဒေါင်းလုဒ်ဆွဲရာတွင် ပြဿနာဖြစ်ပွားပါသည်။ \n\nအကြောင်းရင်း: `{error_msg}`"
+        await context.bot.send_message(chat_id=query.message.chat_id, text=msg, parse_mode='Markdown')
     except Exception as e:
         logger.error(str(e))
-        await context.bot.send_message(chat_id=query.message.chat_id, text="❌ အခြားမမျှော်လင့်သော ပြဿနာတစ်ခု ဖြစ်ပွားခဲ့ပါသည်။")
+        await context.bot.send_message(chat_id=query.message.chat_id, text=f"❌ အခြားမမျှော်လင့်သော ပြဿနာတစ်ခု ဖြစ်ပွားခဲ့ပါသည်။\nError: {e}")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
@@ -206,8 +207,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def search_and_show_playlist(update: Update, message_obj, query_text, page=0):
     clean_query = query_text.replace('\n', ' ').strip()
-    # Search လုပ်ရာတွင်လည်း ban မခံရရန် cookies ထည့်ထားပါသည်
-    ydl_opts = {'playlistend': 20, 'quiet': True, 'extract_flat': 'in_playlist', 'geo_bypass': True, 'proxy': PROXY_URL, 'cookiefile': 'cookies.txt'}
+    
+    ydl_opts = {
+        'playlistend': 20, 
+        'quiet': True, 
+        'extract_flat': 'in_playlist', 
+        'geo_bypass': True, 
+        'proxy': PROXY_URL,
+        'cookiefile': 'cookies.txt'  # 🟢 Search မှာလည်း Cookie ထည့်ပေးထားပါတယ်
+    }
+    
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(f"ytsearch20:{clean_query}", download=False)
@@ -231,7 +240,7 @@ async def search_and_show_playlist(update: Update, message_obj, query_text, page
         await message_obj.edit_text(f"🎵 **Music Search Mode (Page - {page + 1})**\n\n👨‍💻 *Admin: By MGTHANT*", reply_markup=InlineKeyboardMarkup(keyboard))
     except Exception as e:
         logger.error(str(e))
-        await message_obj.edit_text("❌ ရှာဖွေရခက်ခဲနေပါသည်။ Proxy အသုံးပြုရန် လိုအပ်နိုင်ပါသည်။")
+        await message_obj.edit_text(f"❌ ရှာဖွေရခက်ခဲနေပါသည်။ Error: {e}")
 
 def main():
     update_ytdlp()
