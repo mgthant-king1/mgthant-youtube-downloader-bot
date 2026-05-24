@@ -88,6 +88,11 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'no_check_certificates': True,
         'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'retries': 5,
+        'fragment_retries': 10,
+        'socket_timeout': 10,
+        'sleep_interval': 5,
+        'max_sleep_interval': 60,
     }
 
     # Format Quality ရွေးချယ်မှုများ (4K အထိ ပါဝင်အောင် ပြန်လည်ပြင်ဆင်ထားပါသည်)
@@ -139,11 +144,23 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if os.path.exists(filename):
             os.remove(filename)
 
+    except yt_dlp.utils.DownloadError as e:
+        logger.error(f"Download Error: {e}")
+        await context.bot.send_message(
+            chat_id=query.message.chat_id, 
+            text="❌ ဒေါင်းလုဒ်ဆွဲရာတွင် ပြဿနာဖြစ်ပွားပါသည်။ လင့်ခ်မှန်ကန်မှုရှိမရှိ စစ်ဆေးပါ သို့မဟုတ် နောက်မှ ထပ်ကြိုးစားပါ။"
+        )
+    except yt_dlp.utils.ExtractorError as e:
+        logger.error(f"Extractor Error: {e}")
+        await context.bot.send_message(
+            chat_id=query.message.chat_id, 
+            text="❌ ဗီဒီယိုအချက်အလက်များ ရယူရာတွင် ပြဿနာဖြစ်ပွားပါသည်။ YouTube မှ ပိတ်ပင်ထားခြင်း သို့မဟုတ် ဗီဒီယိုမရှိတော့ခြင်း ဖြစ်နိုင်ပါသည်။"
+        )
     except Exception as e:
         logger.error(str(e))
         await context.bot.send_message(
             chat_id=query.message.chat_id, 
-            text="❌ ဒေါင်းလုဒ်ဆွဲရန် အဆင်မပြေပါ။ ဆာဗာမှ ပိတ်ပင်ထားခြင်း သို့မဟုတ် ဗီဒီယို သက်တမ်းကြောင့် ဖြစ်နိုင်ပါသည်။"
+            text="❌ အခြားမမျှော်လင့်သော ပြဿနာတစ်ခု ဖြစ်ပွားခဲ့ပါသည်။ နောက်မှ ထပ်ကြိုးစားပါ။"
         )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
