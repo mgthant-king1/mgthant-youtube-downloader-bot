@@ -11,11 +11,10 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 # --- CONFIGURATION ---
-# မိမိ Bot Token ကို ဤနေရာတွင် ထည့်ပါ
+# မိမိ Bot Token
 BOT_TOKEN = "8925968993:AAF54j8OT9rM20KbcbW6moecBYtmssmr5IQ"
 
-# Proxy အသုံးပြုလိုပါက ဤနေရာတွင် ထည့်ပါ (ဥပမာ: "socks5://user:pass@host:port" သို့မဟုတ် "http://host:port")
-# IP Block ခံရပါက VPN Proxy တစ်ခုခု မဖြစ်မနေ ထည့်သုံးရန် အကြံပြုပါသည်။
+# Proxy - IP Block ခံရပါက VPN Proxy တခုခုသုံးရန်
 PROXY_URL = "http://uparhknj:u5ok7mr7s22l@38.154.203.95:5863/" 
 
 DOWNLOAD_DIR = "downloads"
@@ -83,7 +82,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         target_url = context.user_data[user_id]['link']
         await query.edit_message_text("📥 ဆာဗာတွင် ဖိုင်ကို စတင်ဆွဲယူနေပါပြီ... ခေတ္တစောင့်ပါ။")
 
-    # YouTube Block များကို ကျော်ဖြတ်ရန် အဆင့်မြင့် Network Options များ
+    # YouTube Block များကို ကျော်ဖြတ်ရန် အဆင့်မြင့် Network Options များ (Cookies ထည့်ထားပါသည်)
     ydl_opts = {
         'outtmpl': f'{DOWNLOAD_DIR}/%(id)s.%(ext)s',
         'restrictfilenames': True,
@@ -91,7 +90,6 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'geo_bypass': True,
         'quiet': True,
         'no_check_certificates': True,
-        # iOS client သည် Bot ဟု သတ်မှတ်ခံရမှု အနည်းဆုံးဖြစ်သောကြောင့် အဓိကသုံးသည်
         'extractor_args': {'youtube': {'player_client': ['ios', 'android', 'web']}},
         'user_agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1',
         'retries': 10,
@@ -100,6 +98,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'sleep_interval': 2,
         'max_sleep_interval': 5,
         'proxy': PROXY_URL,
+        'cookiefile': 'cookies.txt', # <--- ဒီအပိုင်းက YouTube Ban တာကိုအဓိက ကာကွယ်ပေးမှာပါ
     }
 
     # Format Quality ရွေးချယ်မှုများ
@@ -155,7 +154,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Download Error: {e}")
         error_msg = str(e)
         if "403" in error_msg or "Sign in to confirm you’re not a bot" in error_msg:
-            msg = "❌ YouTube က Bot ဖြစ်ကြောင်း သိရှိသွားပြီး ပိတ်လိုက်ပါပြီ။ Proxy/VPN အသုံးပြုရန် လိုအပ်ပါသည်။"
+            msg = "❌ YouTube က Login ဝင်ခိုင်းနေပါပြီ။ 'cookies.txt' ဖိုင် မှန်ကန်မှုရှိမရှိ စစ်ဆေးပါ။"
         else:
             msg = "❌ ဒေါင်းလုဒ်ဆွဲရာတွင် ပြဿနာဖြစ်ပွားပါသည်။ လင့်ခ်မှန်ကန်မှုရှိမရှိ စစ်ဆေးပါ။"
         await context.bot.send_message(chat_id=query.message.chat_id, text=msg)
@@ -207,7 +206,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def search_and_show_playlist(update: Update, message_obj, query_text, page=0):
     clean_query = query_text.replace('\n', ' ').strip()
-    ydl_opts = {'playlistend': 20, 'quiet': True, 'extract_flat': 'in_playlist', 'geo_bypass': True, 'proxy': PROXY_URL}
+    # Search လုပ်ရာတွင်လည်း ban မခံရရန် cookies ထည့်ထားပါသည်
+    ydl_opts = {'playlistend': 20, 'quiet': True, 'extract_flat': 'in_playlist', 'geo_bypass': True, 'proxy': PROXY_URL, 'cookiefile': 'cookies.txt'}
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(f"ytsearch20:{clean_query}", download=False)
